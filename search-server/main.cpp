@@ -1,31 +1,4 @@
 #include <algorithm>
-#include <iostream>
-#include <vector>
-
-using namespace std;
-
-struct Animal {
-    string name;
-    int age;
-    double weight;
-};
-
-template <typename Container, typename KeyMapper>
-void SortBy(Container& container, KeyMapper key_mapper, bool reverse = false) {
-    if (reverse) {
-        sort(container.begin(), container.end(),
-            [key_mapper](const auto& lhs, const auto& rhs) {
-                return key_mapper(lhs) > key_mapper(rhs);
-            });
-    }
-    else {
-        sort(container.begin(), container.end(),
-            [key_mapper](const auto& lhs, const auto& rhs) {
-                return key_mapper(lhs) < key_mapper(rhs);
-            });
-    }
-}
-#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <map>
