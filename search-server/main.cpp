@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <numeric>
 #include <iostream>
 #include <set>
 #include <string>
@@ -92,14 +93,13 @@ public:
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
-        if (document_id < 0 || documents_.find(document_id) != documents_.end()) throw invalid_argument("Usind invalid id");
+        if (document_id < 0) throw invalid_argument("Id cannot be less than zero");
+        if (documents_.find(document_id) != documents_.end()) throw invalid_argument("Your id goes beyond the existing id's");
 
         const vector<string> words = SplitIntoWordsNoStop(document);
+        double freq_num = 1.0 / words.size();
         for (auto& word : words) {
-            if (!IsValidWord(word)) throw invalid_argument("Using invalid characters");
-        }
-        for (auto& word : words) {
-            word_to_document_freqs_[word][document_id] += 1.0 / words.size();
+            word_to_document_freqs_[word][document_id] += freq_num;
         }
         documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
         documents_index_.push_back(document_id);
@@ -177,7 +177,7 @@ public:
     }
 
     int GetDocumentId(int index) const {
-        if ((index >= 0) && (index < static_cast<int>(documents_.size()))) return documents_index_[index];
+        if ((index >= 0) && (index < static_cast<int>(documents_.size()))) return documents_index_.at(index);
         else throw out_of_range("Index out of range");
     }
 
@@ -215,6 +215,7 @@ private:
     vector<string> SplitIntoWordsNoStop(const string& text) const {
         vector<string> words;
         for (const string& word : SplitIntoWords(text)) {
+            if (!IsValidWord(word)) throw invalid_argument("Using invalid characters");
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
@@ -223,14 +224,8 @@ private:
     }
 
     static int ComputeAverageRating(const vector<int>& ratings) {
-        if (ratings.empty()) {
-            return 0;
-        }
-        int rating_sum = 0;
-        for (const auto rating : ratings) {
-            rating_sum += rating;
-        }
-        return rating_sum / static_cast<int>(ratings.size());
+        if (ratings.empty()) return 0;
+        return accumulate(ratings.begin(), ratings.end(), 0) / static_cast<int>(ratings.size());
     }
 
     Query ParseQuery(const string& text) const {
@@ -247,6 +242,10 @@ private:
         return query;
     }
 
+    const double IDFCount(size_t size) const {
+        return log(GetDocumentCount() * 1.0 / size);
+    }
+
     template<typename DocumentPredicate>
     vector<Document> FindAllDocuments(const Query& query, DocumentPredicate predicate) const {
         map<int, double> document_to_relevance;
@@ -256,11 +255,12 @@ private:
             for (const auto& document_id_term_freq : word_to_document_freqs_.at(word)) {
                 const DocumentData documents_data = documents_.at(document_id_term_freq.first);
                 if (predicate(document_id_term_freq.first, documents_data.status, documents_data.rating)) {
-                    const double IDF = log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
+                    const double IDF = IDFCount(word_to_document_freqs_.at(word).size());
                     document_to_relevance[document_id_term_freq.first] += IDF * document_id_term_freq.second;
                 }
             }
         }
+
         for (const string& word : query.minus_words) {
             if (word_to_document_freqs_.count(word) == 0) continue;
 
@@ -270,7 +270,7 @@ private:
         }
 
         vector<Document> matched_documents;
-        for (const auto document : document_to_relevance)
+        for (const auto& document : document_to_relevance)
             matched_documents.push_back({ document.first, document.second, documents_.at(document.first).rating });
 
         return matched_documents;
